@@ -108,7 +108,8 @@ void *read_binary(const char *fname, size_t *size) {
   size_t size_ = ftell(f);
   rewind(f);
 
-  void *buf = malloc(size_);
+  void *buf;
+  cudaMallocHost(&buf, size_);
   size_t ret = fread(buf, 1, size_, f);
   if (ret == 0) {
     fprintf(stdout, "[ERROR] Cannot read file \'%s\'\n", fname);
@@ -146,7 +147,7 @@ int main(int argc, char **argv) {
   input = (half_cpu *) read_binary(input_fname, &input_size);
 
   /* Allocate output (size: [(num_images) * (3 * 128 * 128)]) */
-  output = (half_cpu *) malloc(num_images * num_elems_per_image * sizeof(half_cpu));
+  cudaMallocHost((void**)&output, num_images * num_elems_per_image * sizeof(half_cpu));
   
   /* Initialize parameters and activations */
   param = (half_cpu *) read_binary(param_fname, &param_size);
