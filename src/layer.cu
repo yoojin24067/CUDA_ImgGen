@@ -1,6 +1,17 @@
 /* Last Updated: 24.08.27. 18:30 */
 #include "layer.h"
 
+#include <cstdio>
+#include <mma.h>
+using namespace nvcuda;
+#define WMMA_M 16
+#define WMMA_N 16
+#define WMMA_K 16
+#define WARP_SIZE 32
+#define BLOCK_SIZE 32
+#define NUM_WARP ((WMMA_M * WMMA_N) / (WARP_SIZE))
+#define C_LAYOUT wmma::mem_row_major
+
 #define CHECK_CUDA(call)                                                 \
   do {                                                                   \
     cudaError_t status_ = call;                                          \
@@ -32,6 +43,75 @@ void Linear(Tensor *in, Tensor *w, Tensor *b, Tensor *out) {
     }
   }
 }
+static __global__ void Linear_tensor_kernel(half *in, half *w, half *b, half *out, 
+                              size_t M, size_t N, size_t K) {
+  int gj = blockIdx.x;
+  int gi = blockIdx.y;
+  if (gi * BLOCK_SIZE >= M || gj * BLOCK_SIZE >= N) return;  // boundary check
+  int lj = threadIdx.x;
+  int li = threadIdx.y;
+  int warpId = li;
+
+  __shared__ half Alocal[BLOCK_SIZE * BLOCK_SIZE];
+  __shared__ half Blocal[BLOCK_SIZE * BLOCK_SIZE];
+
+    // Declare the fragments
+  wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
+  wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+  wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, half> c_frag;
+  wmma::fill_fragment(c_frag, 0.0f);
+  
+  int A_row_index = (gi * BLOCK_SIZE + li);
+  int B_col_index = (gj * BLOCK_SIZE + lj);
+
+  for (int bk = 0; bk < K; bk += BLOCK_SIZE) {
+    
+    for(int offset = 0 ; offset < NUM_WARP ; ++offset){
+      int A_col_index = bk + lj;
+      Alocal[(li + offset * blockDim.y) * BLOCK_SIZE + lj] = 
+        ((A_row_index + offset * blockDim.y) < M && A_col_index < K)
+        ? in[(A_row_index + offset * blockDim.y) * K + A_col_index]
+        : (half)(0.0);
+
+      int B_row_index = bk + li + (offset * blockDim.y);
+      Blocal[(li + offset * blockDim.y) * BLOCK_SIZE + lj] = 
+      (B_row_index < K && B_col_index < N)
+        ? w[B_row_index + B_col_index * K]
+        : (half)(0.0);  
+    }
+    __syncthreads();
+
+    for (int i = 0; i < BLOCK_SIZE; i += WMMA_K) {
+      int aCol = i;
+      int aRow = (warpId / 2) * WMMA_M;
+      int bCol = (warpId % 2) * WMMA_N;
+      int bRow = i;
+
+      wmma::load_matrix_sync(a_frag, Alocal + aCol + aRow * BLOCK_SIZE, BLOCK_SIZE);
+      wmma::load_matrix_sync(b_frag, Blocal + bCol + bRow * BLOCK_SIZE, BLOCK_SIZE);
+      
+      wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+    }
+
+    __syncthreads();
+  }
+
+  int cRow = (warpId / 2) * WMMA_M + blockIdx.y * blockDim.y * NUM_WARP;
+  int cCol = (warpId % 2) * WMMA_N + blockIdx.x * blockDim.x;
+
+  if(cRow + WMMA_M <= M && cCol + WMMA_N <= N){
+    float * temp;
+    wmma::store_matrix_sync(out + cCol + cRow * N, c_frag, N, C_LAYOUT);
+  }
+
+  half bias = b[B_col_index];
+  for(int offset = 0 ; offset < NUM_WARP ; ++offset){
+    int C_row_index = A_row_index + offset * blockDim.y;
+    if (C_row_index < M && B_col_index < N) {
+      out[C_row_index * N + B_col_index] += bias;
+    }
+  }
+}
 __global__ void Linear_kernel(half *in, half *w, half *b, half *out, 
                               size_t M, size_t N, size_t K) {
   int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -59,9 +139,14 @@ void Linear_cuda(Tensor *in, Tensor *w, Tensor *b, Tensor *out) {
   CHECK_CUDA(cudaMemcpy(w_gpu, w->buf, N * K * sizeof(half), cudaMemcpyHostToDevice));
   CHECK_CUDA(cudaMemcpy(b_gpu, b->buf, N * sizeof(half), cudaMemcpyHostToDevice));
 
-  dim3 blockDim(32, 32);
-  dim3 gridDim((N+31)/32, (M+31)/32);
-  Linear_kernel<<<gridDim, blockDim>>>(in_gpu, w_gpu, b_gpu, out_gpu, M, N, K);
+  int block_size = 32;
+  // dim3 blockDim(block_size, block_size);
+  // dim3 gridDim((N+block_size-1)/block_size, (M+block_size-1)/block_size);
+  // Linear_kernel<<<gridDim, blockDim>>>(in_gpu, w_gpu, b_gpu, out_gpu, M, N, K);
+  dim3 blockDim(block_size, 4);
+  dim3 gridDim((N+block_size-1)/block_size, (M+block_size-1)/block_size);
+  Linear_tensor_kernel<<<gridDim, blockDim>>>(in_gpu, w_gpu, b_gpu, out_gpu, M, N, K);
+  CHECK_CUDA(cudaGetLastError());
   CHECK_CUDA(cudaDeviceSynchronize());
 
   CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, M * N * sizeof(half), cudaMemcpyDeviceToHost));
