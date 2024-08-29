@@ -306,7 +306,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 		
 		/* in [1, 32, 128, 128] -> out [1, 3, 128, 128] */
-		Conv2d(batchnorm6_a, conv_w, conv_b, conv_a);
+		Conv2d_cuda(batchnorm6_a, conv_w, conv_b, conv_a);
 		time_cur = get_time();
 		printf("Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;

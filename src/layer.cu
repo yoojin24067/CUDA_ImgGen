@@ -65,6 +65,9 @@ void Linear_cuda(Tensor *in, Tensor *w, Tensor *b, Tensor *out) {
   CHECK_CUDA(cudaDeviceSynchronize());
 
   CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, M * N * sizeof(half), cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaFree(in_gpu));
+  CHECK_CUDA(cudaFree(w_gpu));
+  CHECK_CUDA(cudaFree(b_gpu));
   CHECK_CUDA(cudaFree(out_gpu));
 }
 
@@ -313,6 +316,79 @@ void Conv2d(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
     }
   }
 }
+__global__ void Conv2d_kernel(half *in, half *weight, half *bias, half *out,
+                              size_t N, size_t C, size_t H, size_t W, 
+                              size_t K, size_t R, size_t S, size_t OH, size_t OW, 
+                              size_t stride, size_t pad, size_t dilation) {
+  
+  int w = blockDim.x * blockIdx.x + threadIdx.x;
+  int tidx = blockDim.y * blockIdx.y + threadIdx.y;
+  int temp = tidx;
+  const int h = tidx % OH;
+  temp /= OH;
+  const int k = temp % K;
+  const int n = temp / K;
+  // int w = blockDim.x * blockIdx.x + threadIdx.x;
+  // const int tidx = blockDim.y * blockIdx.y + threadIdx.y;
+  // const int n = tidx / (K * OH);
+  // const int k = (tidx / (OH)) % K;
+  // const int h = (tidx) % OH;
+
+  if (n >= N || k >= K || h >= OH || w >= OW) return;
+
+  half sum = bias[k];
+  for (int c = 0; c < C; ++c) {
+    for (int r = 0; r < R; ++r) {
+      for (int s = 0; s < S; ++s) {
+        const int ih = h * stride - pad + r * dilation;
+        const int iw = w * stride - pad + s * dilation;
+        if (ih >= H || iw >= W) continue;
+        sum += (in[((n * C + c) * H + ih) * W + iw]) 
+                * (weight[((k * C + c) * R + r) * S + s]);
+      }
+    }
+  }
+  out[((n * K + k) * OH + h) * OW + w] = sum;
+}
+void Conv2d_cuda(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
+  size_t N = in->shape[0];
+  size_t C = in->shape[1];
+  size_t H = in->shape[2];
+  size_t W = in->shape[3];
+  size_t K = weight->shape[0];
+  size_t R = weight->shape[2];
+  size_t S = weight->shape[3];
+  size_t OH = out->shape[2];
+  size_t OW = out->shape[3];
+  
+  const size_t stride = 1;
+  const size_t pad = 1;
+  const size_t dilation = 1;
+  
+  half *in_gpu, *weight_gpu, *bias_gpu, *out_gpu;
+  CHECK_CUDA(cudaMalloc(&in_gpu,      N * C * H * W * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&weight_gpu,  K * C * R * S * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&bias_gpu,    K * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&out_gpu,     N * K * OH * OW * sizeof(half)));
+
+  CHECK_CUDA(cudaMemcpy(in_gpu,     in->buf,      N * C * H * W * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(weight_gpu, weight->buf,  K * C * R * S * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(bias_gpu,   bias->buf,    K * sizeof(half), cudaMemcpyHostToDevice));
+
+  int block_size = 32;
+  dim3 blockDim(block_size, block_size);
+  dim3 gridDim((OW+block_size-1)/block_size, (N*K*OH+block_size-1)/block_size);
+  Conv2d_kernel<<<gridDim, blockDim>>>(in_gpu, weight_gpu, bias_gpu, out_gpu,
+                                        N, C, H, W, K, R, S, OH, OW,
+                                        stride, pad, dilation);
+  CHECK_CUDA(cudaDeviceSynchronize());
+
+  CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, N * K * OH * OW * sizeof(half), cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaFree(in_gpu));
+  CHECK_CUDA(cudaFree(weight_gpu));
+  CHECK_CUDA(cudaFree(bias_gpu));
+  CHECK_CUDA(cudaFree(out_gpu));
+} 
 
 /* Tanh 
  * @param [in & out] inout: [N]
