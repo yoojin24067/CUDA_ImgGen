@@ -279,6 +279,73 @@ void BatchNorm2d(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
     }
   }
 }
+__global__ void BatchNorm2d_kernel(half *in, half *weight, half *bias, half *out,
+                                    size_t C, size_t H, size_t W) {
+  
+  int c = blockDim.x * blockIdx.x + threadIdx.x;
+  const float eps = 1e-5f;
+
+  // 1. Caculate mean for each channel
+  float mean = 0.0f;
+  float var = 0.0f;
+  for (size_t h = 0; h < H; h++) {
+    for (size_t w = 0; w < W; w++) {
+      half val = in[c * H * W + h * W + w];
+      mean += static_cast<float>(val); /* Cast to float */
+    }
+  }
+  mean /= static_cast<float>(H * W);
+
+  // 2. Caculate variance for each channel
+  for (size_t h = 0; h < H; h++) {
+    for (size_t w = 0; w < W; w++) {
+      half val = in[c * H * W + h * W + w];
+      var += (static_cast<float>(val) - mean) * 
+        (static_cast<float>(val) - mean); /* Cast to float */
+    }
+  }
+  var /= static_cast<float>(H * W);
+
+  // 3. Normalize with the calculated mean and variance
+  for (size_t h = 0; h < H; h++) {
+    for (size_t w = 0; w < W; w++) {
+      out[c * H * W + h * W + w] =
+        weight[c] * 
+        (in[c * H * W + h * W + w] - 
+        half(mean)) / /* Cast to half */
+        half(sqrt(var + eps)) + /* Cast to half */
+        bias[c];
+    }
+  }
+}
+void BatchNorm2d_cuda(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
+  size_t C = in->shape[1];
+  size_t H = in->shape[2];
+  size_t W = in->shape[3];
+
+  half *in_gpu, *weight_gpu, *bias_gpu, *out_gpu;
+
+  CHECK_CUDA(cudaMalloc(&in_gpu,      C * H * W * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&weight_gpu,  C * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&bias_gpu,    C * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&out_gpu,     C * H * W * sizeof(half)));
+
+  CHECK_CUDA(cudaMemcpy(in_gpu,     in->buf,      C * H * W * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(weight_gpu, weight->buf,  C * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(bias_gpu,   bias->buf,    C * sizeof(half), cudaMemcpyHostToDevice));
+
+  int block_size = 32;
+  dim3 blockDim((C+block_size-1)/block_size);
+  dim3 gridDim(block_size);
+  BatchNorm2d_kernel<<<gridDim, blockDim>>>(in_gpu, weight_gpu, bias_gpu, out_gpu,
+                                        C, H, W);
+
+  CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, C * H * W * sizeof(half), cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaFree(in_gpu));
+  CHECK_CUDA(cudaFree(weight_gpu));
+  CHECK_CUDA(cudaFree(bias_gpu));
+  CHECK_CUDA(cudaFree(out_gpu));
+}
 
 /* LeakyReLU
  * @param [in & out] inout: [N]

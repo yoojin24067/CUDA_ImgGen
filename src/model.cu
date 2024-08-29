@@ -226,7 +226,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("1) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans1_a, batchnorm1_w, batchnorm1_b, batchnorm1_a);
+		BatchNorm2d_cuda(convtrans1_a, batchnorm1_w, batchnorm1_b, batchnorm1_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -240,7 +240,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("2) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans2_a, batchnorm2_w, batchnorm2_b, batchnorm2_a);
+		BatchNorm2d_cuda(convtrans2_a, batchnorm2_w, batchnorm2_b, batchnorm2_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -254,7 +254,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("3) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans3_a, batchnorm3_w, batchnorm3_b, batchnorm3_a);
+		BatchNorm2d_cuda(convtrans3_a, batchnorm3_w, batchnorm3_b, batchnorm3_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -268,7 +268,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("4) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans4_a, batchnorm4_w, batchnorm4_b, batchnorm4_a);
+		BatchNorm2d_cuda(convtrans4_a, batchnorm4_w, batchnorm4_b, batchnorm4_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -282,7 +282,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("5) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans5_a, batchnorm5_w, batchnorm5_b, batchnorm5_a);
+		BatchNorm2d_cuda(convtrans5_a, batchnorm5_w, batchnorm5_b, batchnorm5_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -296,7 +296,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("6) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		BatchNorm2d(convtrans6_a, batchnorm6_w, batchnorm6_b, batchnorm6_a);
+		BatchNorm2d_cuda(convtrans6_a, batchnorm6_w, batchnorm6_b, batchnorm6_a);
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;

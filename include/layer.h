@@ -22,3 +22,4 @@ void Conv2d_cuda(Tensor *in, Tensor *w, Tensor *b, Tensor *out);
 
 /* Other operations */
 void BatchNorm2d(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out);
+void BatchNorm2d_cuda(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out);
