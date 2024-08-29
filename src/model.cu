@@ -4,6 +4,8 @@
 #include "layer.h"
 #include "model.h"
 
+double get_time();
+
 /* [Model Parameters]
  * _w: Weight parameter
  * _b: Bias parameter
@@ -188,59 +190,137 @@ void free_activations() {
 
 /* [Model Computation: Image Generation] */
 void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
-  
+	double time_pre, time_cur;
 	/* Generate a image for each latent vector in the input */
 	for (size_t n = 0; n < n_img; n++) {
 
+		time_pre = get_time();
 		/* Initialize a input latent vector z [1, LATENT_DIM] */
 		Tensor *z = new Tensor({1, LATENT_DIM});
 		memcpy(z->buf, input + n * LATENT_DIM, LATENT_DIM * sizeof(half_cpu));
+		time_cur = get_time();
+		printf("TensorMemCpy:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* Start computation */
 		/* in [1, LATENT_DIM] -> out [1, 16384] */
 		Linear(z, mlp1_w, mlp1_b, linear1_a);
+		time_cur = get_time();
+		printf("Linear1:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 16384] -> out [1, 4096] */
 		Linear(linear1_a, mlp2_w, mlp2_b, linear2_a);
+		time_cur = get_time();
+		printf("Linear2:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 4096] -> out [1, 1024, 2, 2] */
 		Reshape(linear2_a, reshape_a);
+		time_cur = get_time();
+		printf("Reshape:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 1024, 2, 2] -> out [1, 512, 4, 4] */
 		ConvTranspose2d(reshape_a, convtrans1_w, convtrans1_b, convtrans1_a);
+		time_cur = get_time();
+		printf("1) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans1_a, batchnorm1_w, batchnorm1_b, batchnorm1_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm1_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 512, 4, 4] -> out [1, 256, 8, 8] */
 		ConvTranspose2d(batchnorm1_a, convtrans2_w, convtrans2_b, convtrans2_a);
+		time_cur = get_time();
+		printf("2) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans2_a, batchnorm2_w, batchnorm2_b, batchnorm2_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm2_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 256, 8, 8] -> out [1, 128, 16, 16] */
 		ConvTranspose2d(batchnorm2_a, convtrans3_w, convtrans3_b, convtrans3_a);
+		time_cur = get_time();
+		printf("3) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans3_a, batchnorm3_w, batchnorm3_b, batchnorm3_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm3_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 128, 16, 16] -> out [1, 64, 32, 32] */
 		ConvTranspose2d(batchnorm3_a, convtrans4_w, convtrans4_b, convtrans4_a);
+		time_cur = get_time();
+		printf("4) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans4_a, batchnorm4_w, batchnorm4_b, batchnorm4_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm4_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 64, 32, 32] -> out [1, 32, 64, 64] */
 		ConvTranspose2d(batchnorm4_a, convtrans5_w, convtrans5_b, convtrans5_a);
+		time_cur = get_time();
+		printf("5) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans5_a, batchnorm5_w, batchnorm5_b, batchnorm5_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm5_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* in [1, 32, 64, 64] -> out [1, 32, 128, 128] */
 		ConvTranspose2d(batchnorm5_a, convtrans6_w, convtrans6_b, convtrans6_a);
+		time_cur = get_time();
+		printf("6) Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		BatchNorm2d(convtrans6_a, batchnorm6_w, batchnorm6_b, batchnorm6_a);
+		time_cur = get_time();
+		printf("BatchNorm:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		LeakyReLU(batchnorm6_a);
+		time_cur = get_time();
+		printf("LeakyReLU:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 		
 		/* in [1, 32, 128, 128] -> out [1, 3, 128, 128] */
 		Conv2d(batchnorm6_a, conv_w, conv_b, conv_a);
+		time_cur = get_time();
+		printf("Conv:%f\t", time_cur - time_pre);
+		time_pre = time_cur;
 		Tanh(conv_a);
+		time_cur = get_time();
+		printf("Tanh:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
 
 		/* Copy computation result to the output */
 		memcpy(output + n * 3 * 128 * 128, conv_a->buf, 3 * 128 * 128 * sizeof(half_cpu));
+		time_cur = get_time();
+		printf("OutMemcpy:%f\n", time_cur - time_pre);
+		time_pre = time_cur;
+
+		printf("\n\n");
 	}
 }
