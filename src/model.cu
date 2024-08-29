@@ -300,7 +300,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_cur = get_time();
 		printf("BatchNorm:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
-		LeakyReLU(batchnorm6_a);
+		LeakyReLU_cuda(batchnorm6_a);
 		time_cur = get_time();
 		printf("LeakyReLU:%f\n", time_cur - time_pre);
 		time_pre = time_cur;
