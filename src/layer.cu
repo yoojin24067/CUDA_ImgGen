@@ -156,6 +156,73 @@ void ConvTranspose2d(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
     }
   }
 }
+__global__ void ConvTranspose2d_kernel(half *in, half *weight, half *bias, half *out,
+                      size_t C, size_t H, size_t W, 
+                      size_t K, size_t R, size_t S, size_t OH, size_t OW, 
+                      size_t stride, size_t pad, size_t dilation) {
+
+  int ow = blockDim.x * blockIdx.x + threadIdx.x;
+  int tidx = blockDim.y * blockIdx.y + threadIdx.y;
+  const int oh = tidx % OH;
+  const int k = tidx / OH;
+
+  if (k >= K || oh >= OH || ow >= OW) return;
+
+  half o = bias[k];
+  for (size_t c = 0; c < C; ++c) {
+    for (size_t r = 0; r < R; ++r) {
+      for (size_t s = 0; s < S; ++s) {
+        if ((oh - (r * dilation - pad)) % stride != 0) continue;
+        if ((ow - (s * dilation - pad)) % stride != 0) continue;
+        size_t h = (oh - (r * dilation - pad)) / stride;
+        size_t w = (ow - (s * dilation - pad)) / stride;
+        if (h >= H || w >= W) continue;
+        o += in[c * H * W + h * W + w] * 
+          weight[c * K * R * S + k * R * S + r * S + s];
+      }
+    }
+  }
+  out[k * OH * OW + oh * OW + ow] = o;
+
+}
+void ConvTranspose2d_cuda(Tensor *in, Tensor *weight, Tensor *bias, Tensor *out) {
+  size_t C = in->shape[1];
+  size_t H = in->shape[2];
+  size_t W = in->shape[3];
+  size_t K = weight->shape[1];
+  size_t R = weight->shape[2];
+  size_t S = weight->shape[3];
+  size_t OH = out->shape[2];
+  size_t OW = out->shape[3];
+ 
+  const size_t stride = 2;
+  const size_t pad = 1;
+  const size_t dilation = 1;
+
+  half *in_gpu, *weight_gpu, *bias_gpu, *out_gpu;
+  CHECK_CUDA(cudaMalloc(&in_gpu,      C * H * W * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&weight_gpu,  C * K * R * S * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&bias_gpu,    K * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&out_gpu,     K * OH * OW * sizeof(half)));
+
+  CHECK_CUDA(cudaMemcpy(in_gpu,     in->buf,      C * H * W * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(weight_gpu, weight->buf,  C * K * R * S * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(bias_gpu,   bias->buf,    K * sizeof(half), cudaMemcpyHostToDevice));
+
+  int block_size = 32;
+  dim3 blockDim(block_size, block_size);
+  dim3 gridDim((OW+block_size-1)/block_size, (K*OH+block_size-1)/block_size);
+  ConvTranspose2d_kernel<<<gridDim, blockDim>>>(in_gpu, weight_gpu, bias_gpu, out_gpu,
+                                                C, H, W, K, R, S, OH, OW,
+                                                stride, pad, dilation);
+  CHECK_CUDA(cudaDeviceSynchronize());
+
+  CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, K * OH * OW * sizeof(half), cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaFree(in_gpu));
+  CHECK_CUDA(cudaFree(weight_gpu));
+  CHECK_CUDA(cudaFree(bias_gpu));
+  CHECK_CUDA(cudaFree(out_gpu));
+}
 
 /* BatchNorm2d (track_running_stats=False)
  * @param [in1]     in: [N, C, H, W]

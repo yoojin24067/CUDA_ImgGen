@@ -222,7 +222,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 1024, 2, 2] -> out [1, 512, 4, 4] */
-		ConvTranspose2d(reshape_a, convtrans1_w, convtrans1_b, convtrans1_a);
+		ConvTranspose2d_cuda(reshape_a, convtrans1_w, convtrans1_b, convtrans1_a);
 		time_cur = get_time();
 		printf("1) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -236,7 +236,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 512, 4, 4] -> out [1, 256, 8, 8] */
-		ConvTranspose2d(batchnorm1_a, convtrans2_w, convtrans2_b, convtrans2_a);
+		ConvTranspose2d_cuda(batchnorm1_a, convtrans2_w, convtrans2_b, convtrans2_a);
 		time_cur = get_time();
 		printf("2) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -250,7 +250,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 256, 8, 8] -> out [1, 128, 16, 16] */
-		ConvTranspose2d(batchnorm2_a, convtrans3_w, convtrans3_b, convtrans3_a);
+		ConvTranspose2d_cuda(batchnorm2_a, convtrans3_w, convtrans3_b, convtrans3_a);
 		time_cur = get_time();
 		printf("3) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -264,7 +264,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 128, 16, 16] -> out [1, 64, 32, 32] */
-		ConvTranspose2d(batchnorm3_a, convtrans4_w, convtrans4_b, convtrans4_a);
+		ConvTranspose2d_cuda(batchnorm3_a, convtrans4_w, convtrans4_b, convtrans4_a);
 		time_cur = get_time();
 		printf("4) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -278,7 +278,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 64, 32, 32] -> out [1, 32, 64, 64] */
-		ConvTranspose2d(batchnorm4_a, convtrans5_w, convtrans5_b, convtrans5_a);
+		ConvTranspose2d_cuda(batchnorm4_a, convtrans5_w, convtrans5_b, convtrans5_a);
 		time_cur = get_time();
 		printf("5) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
@@ -292,7 +292,7 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 		time_pre = time_cur;
 
 		/* in [1, 32, 64, 64] -> out [1, 32, 128, 128] */
-		ConvTranspose2d(batchnorm5_a, convtrans6_w, convtrans6_b, convtrans6_a);
+		ConvTranspose2d_cuda(batchnorm5_a, convtrans6_w, convtrans6_b, convtrans6_a);
 		time_cur = get_time();
 		printf("6) Conv:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
