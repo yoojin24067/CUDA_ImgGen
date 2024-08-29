@@ -204,13 +204,13 @@ void generate_images(half_cpu *input, half_cpu *output, size_t n_img) {
 
 		/* Start computation */
 		/* in [1, LATENT_DIM] -> out [1, 16384] */
-		Linear(z, mlp1_w, mlp1_b, linear1_a);
+		Linear_cuda(z, mlp1_w, mlp1_b, linear1_a);
 		time_cur = get_time();
 		printf("Linear1:%f\t", time_cur - time_pre);
 		time_pre = time_cur;
 
 		/* in [1, 16384] -> out [1, 4096] */
-		Linear(linear1_a, mlp2_w, mlp2_b, linear2_a);
+		Linear_cuda(linear1_a, mlp2_w, mlp2_b, linear2_a);
 		time_cur = get_time();
 		printf("Linear2:%f\n", time_cur - time_pre);
 		time_pre = time_cur;

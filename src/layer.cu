@@ -32,6 +32,41 @@ void Linear(Tensor *in, Tensor *w, Tensor *b, Tensor *out) {
     }
   }
 }
+__global__ void Linear_kernel(half *in, half *w, half *b, half *out, 
+                              size_t M, size_t N, size_t K) {
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+  int j = blockDim.y * blockIdx.y + threadIdx.y;
+  if (i >= N || j >= M) return;
+  
+  out[j * N + i] = 0;
+  for (size_t k = 0; k < K; k++) {
+    out[j * N + i] += in[j * K + k] * w[i * K + k];
+  }
+  out[j * N + i] += b[i];
+}
+void Linear_cuda(Tensor *in, Tensor *w, Tensor *b, Tensor *out) {
+  size_t M = out->shape[0];
+  size_t N = out->shape[1];
+  size_t K = w->shape[1];
+
+  half *in_gpu, *w_gpu, *b_gpu, *out_gpu;
+  CHECK_CUDA(cudaMalloc(&in_gpu, M * K * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&w_gpu, N * K * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&b_gpu, N * sizeof(half)));
+  CHECK_CUDA(cudaMalloc(&out_gpu, M * N * sizeof(half)));
+
+  CHECK_CUDA(cudaMemcpy(in_gpu, in->buf, M * K * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(w_gpu, w->buf, N * K * sizeof(half), cudaMemcpyHostToDevice));
+  CHECK_CUDA(cudaMemcpy(b_gpu, b->buf, N * sizeof(half), cudaMemcpyHostToDevice));
+
+  dim3 blockDim(32, 32);
+  dim3 gridDim((N+31)/32, (M+31)/32);
+  Linear_kernel<<<gridDim, blockDim>>>(in_gpu, w_gpu, b_gpu, out_gpu, M, N, K);
+  CHECK_CUDA(cudaDeviceSynchronize());
+
+  CHECK_CUDA(cudaMemcpy(out->buf, out_gpu, M * N * sizeof(half), cudaMemcpyDeviceToHost));
+  CHECK_CUDA(cudaFree(out_gpu));
+}
 
 /* Reshape 
  * @param [in]   in: [N, D]
